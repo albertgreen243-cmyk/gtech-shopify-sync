@@ -79,6 +79,16 @@ CSV ke columns ke naam aur tarteeb **Settings → Orders CSV columns** mein Gtec
 
 > 60 din se purani sale dekhne ke liye Shopify app mein `read_all_orders` scope chahiye.
 
+### Scan (barcode scanner / mobile camera)
+1. **Scan** tab → **Add (+)** (naya maal aaya) ya **Minus (−)** (maal nikla) chunein, aur har scan ki qty.
+2. Scan karne ke teen tareeqe:
+   - **Barcode scanner (USB / Bluetooth):** box mein click kar ke scan karte jayein.
+   - **📷 Mobile camera se scan:** phone par site khol kar ye button dabayein. Pehli dafa browser camera ki ijazat maangega, **Allow** karein. Barcode ko box ke andar laayein, khud scan ho jayega (beep + vibration). Wahi barcode dobara scan karna ho to camera hata kar phir laayein.
+   - **🖼 Photo le kar scan:** agar live camera na chale to phone ka camera khul kar photo se barcode parhta hai.
+3. "Har scan par foran Shopify update karo" on ho to har scan par foran stock badalta hai (galti ho to history mein **Undo**). Band karein to pehle list banti hai, phir **Sab Shopify par save karo**.
+
+Software pehle Shopify variant ka **barcode** dhoondta hai. Na mile to code ko SKU label samajhta hai (`KHD-301-M`, `KHD-301 M`). Ek SKU + size do listings par ho to dono ka stock saath badalta hai. Camera ke liye site `https://` par honi chahiye (Vercel par hoti hai).
+
 ---
 
 ## Masail (Troubleshooting)

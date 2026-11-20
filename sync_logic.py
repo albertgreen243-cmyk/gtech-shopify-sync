@@ -478,3 +478,55 @@ def sales_report(orders, sku_terms, variants, cfg, include_cancelled=False):
             "totals": {"orders": len(totals["orders"]), "qty": totals["qty"], "amount": round(totals["amount"], 2),
                        "returned": totals["returned"], "net_qty": totals["qty"] - totals["returned"],
                        "cancelled_qty": totals["cancelled_qty"]}}
+
+
+# ------------------------------------------------------------------ barcode scan
+def barcode_forms(code):
+    """Scanner kabhi UPC-A (12 digit) ko EAN-13 bana kar aage 0 laga deta hai: dono shakal try karo."""
+    c = (code or "").strip()
+    out = [c] if c else []
+    if c.isdigit():
+        if len(c) == 13 and c.startswith("0"):
+            out.append(c[1:])
+        elif len(c) == 12:
+            out.append("0" + c)
+    return out
+
+
+def match_scan_label(code, variants):
+    """SKU label (jaise 'KHD-301-M', 'KHD-301 M', 'SCARF-9') se variants dhoondo.
+    Returns (variants, note). Na mile to variants khali aur note mein wajah."""
+    c = norm(code)
+    exact = [v for v in variants if norm(v["sku"]) == c]
+    if exact and len({norm(v["size"]) for v in exact}) == 1:   # har size ka apna SKU, ya bina size ka item
+        return exact, ""
+    known = {norm(v["sku"]) for v in variants}
+    sku, size = split_code(c, known)
+    same = [v for v in variants if norm(v["sku"]) == sku]
+    if not same:
+        return [], ""
+    hits = [v for v in same if norm(v["size"]) == norm(size)]
+    if hits:
+        return hits, ""
+    sizes = sorted({v["size"] for v in same if v["size"]}, key=_size_key)
+    if not size:
+        eg = f"{sku}-{sizes[0]}" if sizes else sku
+        return [], f"{sku} ke {len(sizes)} sizes hain ({', '.join(sizes)}). Label mein size bhi hona chahiye, jaise {eg}"
+    return [], f"{sku} ka size '{size}' Shopify par nahi mila. Is SKU ke sizes: {', '.join(sizes)}"
+
+
+def scan_group(vs):
+    """Ek scan ke saare variants (same SKU+size, kabhi 2 listings) ek group mein."""
+    v = vs[0]
+    ok = [x for x in vs if x.get("inventory_item_id") and x.get("tracked") and x.get("stocked")]
+    issues = []
+    if any(not x.get("tracked") for x in vs):
+        issues.append("Shopify par is item ki inventory track nahi ho rahi (product mein 'Track quantity' on karein)")
+    if any(x.get("tracked") and not x.get("stocked") for x in vs):
+        issues.append("Ye item is location par stocked nahi hai")
+    avail = [x["available"] for x in ok if x.get("available") is not None]
+    return {"sku": v["sku"], "size": v["size"], "product": v["product"],
+            "products": sorted({x["product"] for x in vs}),
+            "inventory_item_ids": [x["inventory_item_id"] for x in ok],
+            "available": max(avail) if avail else None, "listings": len(vs),
+            "barcodes": sorted({x.get("barcode") for x in vs if x.get("barcode")}), "issues": issues}

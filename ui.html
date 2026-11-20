@@ -11,8 +11,8 @@
   header{background:#12312e;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:16px}
   header h1{font-size:18px;margin:0;font-weight:600}
   header .sub{opacity:.7;font-size:12px}
-  nav{display:flex;gap:4px;padding:0 24px;background:#12312e}
-  nav button{background:none;border:0;color:#cfe3e0;padding:10px 16px;font:inherit;cursor:pointer;border-bottom:3px solid transparent}
+  nav{display:flex;gap:4px;padding:0 24px;background:#12312e;overflow-x:auto}
+  nav button{white-space:nowrap;background:none;border:0;color:#cfe3e0;padding:10px 16px;font:inherit;cursor:pointer;border-bottom:3px solid transparent}
   nav button.on{color:#fff;border-color:#5eead4}
   main{max-width:1200px;margin:20px auto;padding:0 20px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:16px}
@@ -50,6 +50,17 @@
   code{background:#f3f2ee;padding:1px 5px;border-radius:4px}
   .spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:s 1s linear infinite;vertical-align:-2px;margin-right:6px}
   @keyframes s{to{transform:rotate(360deg)}}
+  .scnBtns .b{font-size:15px;padding:11px 18px}
+  #camWrap{margin-top:12px}
+  #camFrame{position:relative;max-width:560px}
+  #camBox{width:100%;min-height:140px;background:#111;border-radius:8px;overflow:hidden;border:3px solid transparent;transition:border-color .15s}
+  #camBox.hit{border-color:#22c55e}
+  #camBox video{display:block;width:100%!important;height:auto!important}
+  #camToast{display:none;position:absolute;left:10px;right:10px;bottom:10px;padding:9px 12px;border-radius:6px;font-size:15px;font-weight:600;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  #camToast.ok{display:block;background:#ecfdf5;color:#065f46}
+  #camToast.bad{display:block;background:#fef2f2;color:#991b1b}
+  .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+  @media (max-width:640px){ main{padding:0 10px} .card{padding:14px} header{padding:12px 14px} nav{padding:0 8px} }
 </style>
 </head>
 <body>
@@ -64,6 +75,7 @@
   <button data-tab="inv" class="on">1. Inventory Sync (Gtech → Shopify)</button>
   <button data-tab="ord">2. Orders Export (Shopify → Gtech)</button>
   <button data-tab="sal">3. Sale Report (SKU / Size)</button>
+  <button data-tab="scn">4. Scan (barcode / mobile camera)</button>
   <button data-tab="set">⚙ Settings</button>
 </nav>
 <main>
@@ -172,6 +184,43 @@
   </div>
 </section>
 
+<!-- ================= SCAN ================= -->
+<section id="tab-scn" class="hide">
+  <div class="card">
+    <h2>Barcode scan kar ke stock update</h2>
+    <p class="hint">Neeche box mein click karein aur scanner se scan karte jayein, ya mobile par <b>📷 Mobile camera se scan</b> dabayein. Barcode na mile to software SKU label (jaise <code>KHD-301-M</code>) se bhi dhoondta hai.</p>
+    <div class="row" style="margin-top:0">
+      <label class="chk" style="margin:0"><input type="radio" name="scnMode" value="1" checked> <b>Add (+)</b> naya maal aaya</label>
+      <label class="chk" style="margin:0"><input type="radio" name="scnMode" value="-1"> <b>Minus (−)</b> maal nikla</label>
+      <span style="margin-left:12px">Har scan par qty: <input type="text" id="scnQty" value="1" style="width:60px"></span>
+    </div>
+    <div class="chk"><input type="checkbox" id="scnInstant" checked><span>Har scan par foran Shopify update karo (band karein to pehle list banegi, phir ek saath save)</span></div>
+    <input type="text" id="scnInput" placeholder="Yahan click kar ke scan karein…" autocomplete="off"
+      style="width:100%;font-size:22px;padding:14px;margin-top:10px;border:2px solid #0f766e;border-radius:8px">
+    <div class="row scnBtns">
+      <button class="b" id="btnCam">📷 Mobile camera se scan</button>
+      <button class="b sec" id="btnPhoto">🖼 Photo le kar scan</button>
+      <input type="file" id="scnPhoto" accept="image/*" capture="environment" class="vh" tabindex="-1">
+    </div>
+    <div id="camWrap" class="hide">
+      <div id="camFrame"><div id="camBox"></div><div id="camToast"></div></div>
+      <div class="row"><button class="b danger" id="btnCamStop">✕ Camera band karo</button><span class="hint" id="camStatus" style="margin:0"></span></div>
+    </div>
+    <div id="scnFileBox" style="display:none"></div>
+    <div id="scnLast" style="margin-top:12px"></div>
+  </div>
+  <div class="card hide" id="scnPendingCard">
+    <h2>List (abhi save nahi hui)</h2>
+    <div class="tbl"><table id="scnPending"></table></div>
+    <div class="row"><button class="b" id="btnScnSave">✔ Sab Shopify par save karo</button><button class="b sec" id="btnScnClear">List khali karo</button></div>
+    <div id="scnSaveMsg"></div>
+  </div>
+  <div class="card">
+    <h2>Scan history (is session ki)</h2>
+    <div class="tbl" style="max-height:420px"><table id="scnLog"><tr><th>Waqt</th><th>Code</th><th>SKU</th><th>Size</th><th>Change</th><th>Naya stock</th><th>Status</th><th></th></tr></table></div>
+  </div>
+</section>
+
 <!-- ================= SETTINGS ================= -->
 <section id="tab-set" class="hide">
   <div class="card">
@@ -210,7 +259,7 @@ let CFG = {}, COLS = [], LOC = "", FILEOBJ = null, FILE = null, PREVIEW = null, 
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
-  ["inv","ord","sal","set"].forEach(t => $("#tab-"+t).classList.toggle("hide", t !== b.dataset.tab));
+  ["inv","ord","sal","scn","set"].forEach(t => $("#tab-"+t).classList.toggle("hide", t !== b.dataset.tab));
 });
 
 function msg(el, text, kind="info"){ $(el).innerHTML = text ? `<div class="msg ${kind}">${esc(text)}</div>` : ""; }
@@ -435,6 +484,192 @@ $("#btnSalCsv").onclick = () => csvDownload(`sale_${SAL.terms.join("_")}_${stamp
   SAL.rows.map(r=>[r.sku,r.size,r.qty,r.orders,r.returned,r.net_qty,r.unfulfilled,r.cancelled_qty,r.amount,r.stock]));
 $("#btnSalLines").onclick = () => csvDownload(`sale_orders_${SAL.terms.join("_")}_${stamp()}.csv`,
   ["Date","Order","SKU","Size","Qty","Amount","Status","Payment"], SAL.lines.map(l=>[l.date,l.order_no,l.sku,l.size,l.qty,l.amount,l.status,l.payment]));
+
+// ---------------- scan
+const PENDING = new Map(); let scanBusy = Promise.resolve(), logN = 0, AC = null, CAM = null, CAMON = false, FREADER = null;
+const TOUCH = !!(window.matchMedia && matchMedia("(pointer:coarse)").matches);
+function focusScan(){ if(!TOUCH) $("#scnInput").focus(); }   // mobile par keyboard khud na khule
+function unlockAudio(){ try{ AC = AC || new (window.AudioContext||window.webkitAudioContext)(); if(AC.state === "suspended") AC.resume(); }catch(e){} }
+function beep(ok){ try{ navigator.vibrate && navigator.vibrate(ok ? 60 : [90,60,90]); }catch(e){}
+  try{ unlockAudio(); const a = AC, o = a.createOscillator(), g = a.createGain();
+  o.frequency.value = ok ? 880 : 220; o.type = ok ? "sine" : "square"; g.gain.value = .08; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + (ok?.12:.35)); }catch(e){} }
+function scnDelta(){ const q = Math.max(1, parseInt($("#scnQty").value,10)||1); return q * parseInt(document.querySelector('input[name=scnMode]:checked').value,10); }
+function logRow(o){
+  const id = "lg"+(++logN), t = new Date().toLocaleTimeString();
+  const tr = document.createElement("tr"); tr.id = id;
+  tr.innerHTML = `<td>${t}</td><td>${esc(o.code)}</td><td>${esc(o.sku||"")}</td><td>${esc(o.size||"")}</td>
+    <td class="num ${o.delta>0?"pos":"neg"}">${o.delta?((o.delta>0?"+":"")+o.delta):""}</td><td class="num"><b>${o.after??""}</b></td>
+    <td><span class="pill ${o.cls}">${esc(o.status)}</span></td><td>${o.undo?'<button class="b sec" style="padding:3px 10px">Undo</button>':""}</td>`;
+  const head = $("#scnLog").rows[0]; head.after(tr);
+  if(o.undo) tr.querySelector("button").onclick = async ev => { ev.target.disabled = true;
+    try{ await postJSON("/api/scan/apply", {location_id:LOC, items:[{inventory_item_ids:o.ids, delta:-o.delta}]});
+      tr.querySelector(".pill").textContent = "Undo ho gaya"; tr.querySelector(".pill").className = "pill SAME"; ev.target.remove(); beep(true); }
+    catch(err){ ev.target.disabled = false; alertBox(err.message); } };
+}
+function alertBox(text, ok){ $("#scnLast").innerHTML = `<div class="msg ${ok?"ok":"bad"}" style="font-size:16px">${esc(text)}</div>`;
+  if(CAMON){ const t = $("#camToast"); t.textContent = text; t.className = ok ? "ok" : "bad"; clearTimeout(alertBox.tm); alertBox.tm = setTimeout(() => { t.className = ""; }, 3500); } }
+function renderPending(){
+  $("#scnPendingCard").classList.toggle("hide", !PENDING.size);
+  $("#scnPending").innerHTML = "<tr><th>SKU</th><th>Size</th><th>Product</th><th>Abhi stock</th><th>Change</th><th>Save ke baad</th><th></th></tr>" +
+    [...PENDING.entries()].map(([k,p])=>`<tr><td>${esc(p.g.sku)}</td><td><b>${esc(p.g.size)}</b></td><td>${esc(p.g.product)}</td><td class="num">${p.g.available??"–"}</td>
+      <td><input type="text" value="${p.delta}" data-k="${esc(k)}" class="pdIn" style="width:70px"></td><td class="num"><b>${(p.g.available||0)+p.delta}</b></td>
+      <td><button class="b sec pdDel" data-k="${esc(k)}" style="padding:3px 10px">✕</button></td></tr>`).join("");
+  document.querySelectorAll(".pdIn").forEach(i=>i.onchange=()=>{ const p = PENDING.get(i.dataset.k); p.delta = parseInt(i.value,10)||0; renderPending(); });
+  document.querySelectorAll(".pdDel").forEach(b=>b.onclick=()=>{ PENDING.delete(b.dataset.k); renderPending(); focusScan(); });
+}
+async function doScan(code){
+  const delta = scnDelta(), instant = $("#scnInstant").checked;
+  try{
+    const j = await postJSON("/api/scan", {code, location_id:LOC, delta, apply:instant});
+    if(!j.found){ beep(false); alertBox(j.error || `❌ "${code}" kisi product par nahi mila`); logRow({code, status:"Nahi mila", cls:"ERROR"}); return; }
+    const g = j.group;
+    if(!g.inventory_item_ids.length){ beep(false); alertBox(`${g.sku} ${g.size}: ${g.issues.join("; ")}`); logRow({code, sku:g.sku, size:g.size, status:"Error", cls:"ERROR"}); return; }
+    beep(true);
+    if(instant){
+      alertBox(`✔ ${g.sku} · ${g.size||"-"} · ${g.product}   ${delta>0?"+":""}${delta}  →  stock ${g.available}`, true);
+      logRow({code, sku:g.sku, size:g.size, delta, after:g.available, status:"Save ho gaya", cls:"DONE", undo:true, ids:g.inventory_item_ids});
+    }else{
+      const k = g.sku+"|"+g.size, p = PENDING.get(k) || {g, delta:0}; p.delta += delta; PENDING.set(k, p); renderPending();
+      alertBox(`➕ List mein: ${g.sku} · ${g.size||"-"}  (${p.delta>0?"+":""}${p.delta})`, true);
+      logRow({code, sku:g.sku, size:g.size, delta, status:"List mein", cls:"UPDATE"});
+    }
+  }catch(err){ beep(false); alertBox(err.message); logRow({code, status:"Error", cls:"ERROR"}); }
+}
+function submitCode(code){
+  code = String(code ?? "").trim(); if(!code) return;
+  if(!LOC){ beep(false); alertBox("Pehle Settings mein location select karein"); return; }
+  scanBusy = scanBusy.then(() => doScan(code));   // scans ek ke baad ek, tarteeb se
+}
+$("#scnInput").onkeydown = e => {
+  if(e.key !== "Enter") return; e.preventDefault();
+  const code = e.target.value.trim(); e.target.value = ""; submitCode(code);
+};
+$("#btnScnSave").onclick = async e => {
+  const items = [...PENDING.values()].filter(p=>p.delta).map(p=>({inventory_item_ids:p.g.inventory_item_ids, delta:p.delta}));
+  if(!items.length) return;
+  busy(e.target,true,"Save ho raha hai…");
+  try{ const j = await postJSON("/api/scan/apply", {location_id:LOC, items});
+    msg("#scnSaveMsg", `✔ ${items.length} items Shopify par update ho gaye.` + (j.errors.length?"\n"+j.errors.join("\n"):""), j.errors.length?"bad":"ok");
+    PENDING.clear(); renderPending(); $("#scnPendingCard").classList.remove("hide"); }
+  catch(err){ msg("#scnSaveMsg", err.message, "bad"); }
+  busy(e.target,false); focusScan();
+};
+$("#btnScnClear").onclick = () => { PENDING.clear(); renderPending(); focusScan(); };
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+  if(b.dataset.tab === "scn"){ setTimeout(focusScan, 50); loadQrLib(); } else camStop();
+}));
+
+// ---------------- mobile camera se scan
+// Live camera: html5-qrcode (Android Chrome par phone ka apna BarcodeDetector use hota hai).
+// Jahan live camera na chale (permission / browser), "Photo le kar scan" phone ka camera khol kar photo se barcode parhta hai.
+const QR_LIBS = ["https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js", "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"];
+let qrLib = null, camTok = 0, camSeen = {}, camLast = 0;
+function loadQrLib(){
+  if(window.Html5Qrcode) return Promise.resolve(true);
+  if(qrLib) return qrLib;
+  qrLib = (async () => {
+    for(const src of QR_LIBS){
+      const ok = await new Promise(res => { const s = document.createElement("script"); s.src = src; s.async = true;
+        const t = setTimeout(() => res(!!window.Html5Qrcode), 15000);
+        s.onload = () => { clearTimeout(t); res(!!window.Html5Qrcode); };
+        s.onerror = () => { clearTimeout(t); s.remove(); res(false); };
+        document.head.appendChild(s); });
+      if(ok) return true;
+    }
+    qrLib = null; return false;
+  })();
+  return qrLib;
+}
+function qrReader(id){
+  const F = window.Html5QrcodeSupportedFormats, cfg = {verbose:false, experimentalFeatures:{useBarCodeDetectorIfSupported:true}};
+  if(F) cfg.formatsToSupport = ["EAN_13","EAN_8","UPC_A","UPC_E","CODE_128","CODE_39","CODE_93","ITF","CODABAR","QR_CODE"].map(k => F[k]).filter(v => v != null);
+  return new Html5Qrcode(id, cfg);
+}
+function camStatus(t){ $("#camStatus").textContent = t || ""; }
+function onCamCode(text){
+  const code = String(text || "").trim(), now = Date.now(); if(!code) return;
+  const prev = camSeen[code];
+  if(prev && now - prev < 1200){ camSeen[code] = now; return; }   // wahi barcode abhi bhi camera ke saamne hai: dobara count nahi
+  if(now - camLast < 800) return;
+  camSeen[code] = now; camLast = now;
+  const box = $("#camBox"); box.classList.add("hit"); setTimeout(() => box.classList.remove("hit"), 400);
+  camStatus("Parha gaya: " + code);
+  submitCode(code);
+}
+async function camStart(){
+  unlockAudio();
+  if(!LOC){ beep(false); alertBox("Pehle Settings mein location select karein"); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ camFail("nosupport"); return; }
+  const tok = ++camTok;
+  $("#camWrap").classList.remove("hide"); $("#btnCam").classList.add("hide"); $("#camToast").className = ""; camStatus("Camera khul raha hai…");
+  if(!await loadQrLib()){ if(tok === camTok) camFail("lib"); return; }
+  if(tok !== camTok) return;
+  try{
+    CAM = CAM || qrReader("camBox");
+    await CAM.start({facingMode:"environment"}, {
+      fps: 12,
+      qrbox: (w, h) => ({width: Math.max(60, Math.floor(w * .9)), height: Math.max(60, Math.floor(Math.min(h * .6, w * .5)))}),
+      videoConstraints: {facingMode:"environment", width:{ideal:1280}, height:{ideal:720}}
+    }, onCamCode, () => {});
+    if(tok !== camTok){ try{ await CAM.stop(); }catch(e){} return; }
+    CAMON = true; camSeen = {};
+    camStatus("Barcode ko box ke andar laayein. Wahi barcode dobara scan karna ho to camera hata kar phir laayein.");
+  }catch(err){ if(tok === camTok) camFail(err); }
+}
+async function camStop(){
+  camTok++; CAMON = false;
+  $("#camWrap").classList.add("hide"); $("#btnCam").classList.remove("hide"); $("#camToast").className = ""; camStatus("");
+  if(CAM){ try{ if(CAM.isScanning) await CAM.stop(); }catch(e){} try{ CAM.clear(); }catch(e){} }
+}
+function camFail(err){
+  const s = String(err && err.name ? err.name + " " + err.message : err);
+  const why = err === "lib" ? "Scanner load nahi hua. Internet check kar ke dobara try karein."
+    : /NotAllowed|Permission|denied|policy|secure/i.test(s) ? "Camera ki ijazat nahi mili (browser mein is site ke liye Camera ko Allow karein)."
+    : /NotFound|DevicesNotFound|Overconstrained/i.test(s) ? "Is device par camera nahi mila."
+    : /NotReadable|TrackStart|in use/i.test(s) ? "Camera kisi aur app mein khula hai. Use band kar ke dobara try karein."
+    : "Is page par live camera nahi chal saka.";
+  camStop(); beep(false);
+  alertBox(why + ' Abhi "🖼 Photo le kar scan" dabayein: phone ka camera khulega, barcode ki saaf photo lein.');
+}
+function loadImg(file){ return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image();
+  im.onload = () => { res(im); setTimeout(() => URL.revokeObjectURL(u), 10000); };
+  im.onerror = () => { URL.revokeObjectURL(u); rej(new Error("Ye photo khul nahi saki, dobara lein")); }; im.src = u; }); }
+function imgCanvas(im, max, rot){
+  const W = im.naturalWidth, H = im.naturalHeight, s = Math.min(1, max / Math.max(W, H)), w = Math.max(1, Math.round(W * s)), h = Math.max(1, Math.round(H * s));
+  const c = document.createElement("canvas"), x = c.getContext("2d");
+  if(rot){ c.width = h; c.height = w; x.translate(h, 0); x.rotate(Math.PI / 2); } else { c.width = w; c.height = h; }
+  x.drawImage(im, 0, 0, w, h); return c;
+}
+async function decodePhoto(file){
+  const im = await loadImg(file), big = Math.max(im.naturalWidth, im.naturalHeight);
+  const sizes = [...new Set([1400, 2200, 900].map(m => Math.min(m, big)))];
+  if("BarcodeDetector" in window){   // Android Chrome: phone ka apna detector, tez
+    for(const m of sizes){ try{ const r = await new BarcodeDetector().detect(imgCanvas(im, m, 0)); if(r.length && r[0].rawValue) return r[0].rawValue; }catch(e){ break; } }
+  }
+  if(!await loadQrLib()){ if("BarcodeDetector" in window) return null; throw new Error("Scanner load nahi hua. Internet check kar ke dobara try karein."); }
+  FREADER = FREADER || qrReader("scnFileBox");
+  for(const m of sizes) for(const rot of [0, 1]){   // seedhi aur tirchi (90°) dono try
+    try{ const c = imgCanvas(im, m, rot), b = await new Promise(r => c.toBlob(r, "image/jpeg", .92));
+      const t = await FREADER.scanFile(new File([b], "scan.jpg", {type:"image/jpeg"}), false); if(t) return t; }catch(e){}
+  }
+  return null;
+}
+$("#btnCam").onclick = camStart;
+$("#btnCamStop").onclick = () => { camStop(); };
+$("#btnPhoto").onclick = () => { unlockAudio(); camStop(); const f = $("#scnPhoto"); f.value = ""; f.click(); };
+$("#scnPhoto").onchange = async e => {
+  const file = e.target.files && e.target.files[0]; if(!file) return;
+  if(!LOC){ beep(false); alertBox("Pehle Settings mein location select karein"); return; }
+  const btn = $("#btnPhoto"); busy(btn, true, "Barcode dhoond raha hoon…");
+  try{
+    const code = await decodePhoto(file);
+    if(code) submitCode(code);
+    else { beep(false); alertBox("Photo mein barcode parha nahi gaya. Barcode ko beech mein rakh kar, thora qareeb se, achhi roshni mein seedhi photo lein (blur na ho)."); }
+  }catch(err){ beep(false); alertBox(err.message); }
+  busy(btn, false); e.target.value = "";
+};
+document.addEventListener("visibilitychange", () => { if(document.hidden && CAMON) camStop(); });
+
 
 init();
 </script>

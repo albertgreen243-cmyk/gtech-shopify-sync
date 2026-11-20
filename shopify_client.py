@@ -104,7 +104,7 @@ class Shopify:
       productVariants(first: 100, after: $after, query: $q) {
         pageInfo { hasNextPage endCursor }
         nodes {
-          id sku title
+          id sku barcode title
           selectedOptions { name value }
           product { id title status }
           inventoryItem {
@@ -130,7 +130,7 @@ class Shopify:
         if lvl and lvl.get("quantities"):
             qty = lvl["quantities"][0]["quantity"]
         return {
-            "variant_id": n["id"], "sku": sku, "size": size,
+            "variant_id": n["id"], "sku": sku, "size": size, "barcode": (n.get("barcode") or "").strip(),
             "variant_title": n.get("title") or "",
             "product": n["product"]["title"], "product_status": n["product"]["status"],
             "inventory_item_id": inv.get("id"), "tracked": inv.get("tracked", False),
@@ -164,6 +164,66 @@ class Shopify:
                     break
                 after = pv["pageInfo"]["endCursor"]
         return out
+
+    def variants_by_barcodes(self, codes, location_id):
+        """Woh variants jin ka barcode in mein se kisi se exact match ho (scan ke liye)."""
+        wanted = {}
+        for c in codes:
+            c = (c or "").strip().replace('"', "").replace("\\", "")
+            if c:
+                wanted[c.upper()] = c
+        if not wanted:
+            return []
+        q = " OR ".join(f'barcode:"{c}"' for c in wanted.values())
+        out, seen, after = [], set(), None
+        while True:
+            d = self.gql(self.VARIANT_Q, {"q": q, "loc": location_id, "after": after})
+            pv = d["productVariants"]
+            for n in pv["nodes"]:
+                v = self._parse_variant(n)
+                if n["id"] not in seen and v["barcode"].upper() in wanted:
+                    seen.add(n["id"])
+                    out.append(v)
+            if not pv["pageInfo"]["hasNextPage"]:
+                break
+            after = pv["pageInfo"]["endCursor"]
+        return out
+
+    # ---------- adjust inventory (scan: +/-) ----------
+    def adjust_quantities(self, location_id, changes, reference="gtech://scan"):
+        """changes: list of dict(inventory_item_id, delta).
+        Returns (naya available qty har inventory item ka, errors list)."""
+        m = """
+        mutation($input: InventoryAdjustQuantitiesInput!, $key: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $key) {
+            inventoryAdjustmentGroup { changes { name delta quantityAfterChange item { id } } }
+            userErrors { field message code }
+          }
+        }"""
+        after, errors = {}, []
+        changes = [c for c in changes if int(c.get("delta") or 0)]
+        for i in range(0, len(changes), 100):
+            batch = changes[i:i + 100]
+            inp = {
+                "name": "available",
+                "reason": "correction",
+                "referenceDocumentUri": reference,
+                # delta wali tabdeeli hai, is liye "pehle kitna tha" wala check band (2026-04 se null dena zaroori)
+                "changes": [{
+                    "inventoryItemId": c["inventory_item_id"],
+                    "locationId": location_id,
+                    "delta": int(c["delta"]),
+                    "changeFromQuantity": None,
+                } for c in batch],
+            }
+            d = self.gql(m, {"input": inp, "key": str(uuid.uuid4())})
+            res = d["inventoryAdjustQuantities"]
+            for e in res.get("userErrors") or []:
+                errors.append(e.get("message") or str(e))
+            for ch in (res.get("inventoryAdjustmentGroup") or {}).get("changes") or []:
+                if ch.get("name") == "available" and ch.get("item"):
+                    after[ch["item"]["id"]] = ch.get("quantityAfterChange")
+        return after, errors
 
     # ---------- set inventory ----------
     def set_quantities(self, location_id, items):
