@@ -302,6 +302,76 @@ def sales():
     return jsonify({"ok": True, "terms": terms, **rep})
 
 
+# ------------------------------------------------------------------ barcode scan (scanner / mobile camera)
+def _int(v, default=0):
+    try:
+        return max(-100000, min(100000, int(v)))
+    except (TypeError, ValueError):
+        return default
+
+
+@app.post("/api/scan")
+def scan():
+    """Ek barcode / SKU label: item dhoondo, aur apply=true ho to foran delta (+/-) lagao."""
+    b = request.get_json(force=True)
+    code = str(b.get("code") or "").strip()[:100]
+    loc = b.get("location_id") or cfg()["location_id"]
+    if not code:
+        return err("Code khali hai")
+    if not loc:
+        return err("Pehle Settings mein location select karein")
+    delta = _int(b.get("delta"))
+    try:
+        sh = shop()
+        vs, note = sh.variants_by_barcodes(L.barcode_forms(code), loc), ""
+        if vs and len({(L.norm(v["sku"]), L.norm(v["size"])) for v in vs}) == 1 and vs[0]["sku"]:
+            # same SKU + size ki doosri listings (jin par barcode nahi laga) ko bhi saath update karo
+            ids = {v["variant_id"] for v in vs}
+            vs += [v for v in sh.variants_by_skus([vs[0]["sku"]], loc) if v["variant_id"] not in ids
+                   and L.norm(v["size"]) == L.norm(vs[0]["size"])]
+        if not vs:   # barcode nahi mila: SKU label (KHD-301-M) samajh kar dhoondo
+            vs, note = L.match_scan_label(code, sh.variants_by_skus(L.candidate_skus(code), loc))
+        if not vs:
+            return jsonify({"ok": True, "found": False, "code": code, "error": note or None})
+        items = sorted({f'{v["sku"]} {v["size"]}'.strip() for v in vs})
+        if len({(L.norm(v["sku"]), L.norm(v["size"])) for v in vs}) > 1:
+            return jsonify({"ok": True, "found": False, "code": code,
+                            "error": f'"{code}" Shopify par {len(items)} alag items par laga hai ({", ".join(items)}). Barcode theek karein.'})
+        g = L.scan_group(vs)
+        applied = False
+        if b.get("apply") and delta and g["inventory_item_ids"]:
+            after, errors = sh.adjust_quantities(loc, [{"inventory_item_id": i, "delta": delta} for i in g["inventory_item_ids"]])
+            if errors:
+                return err("Shopify par update nahi hua: " + "; ".join(errors))
+            vals = [after[i] for i in g["inventory_item_ids"] if after.get(i) is not None]
+            g["available"] = max(vals) if vals else (None if g["available"] is None else g["available"] + delta)
+            applied = True
+    except ShopifyError as e:
+        return err(e)
+    return jsonify({"ok": True, "found": True, "code": code, "group": g, "applied": applied})
+
+
+@app.post("/api/scan/apply")
+def scan_apply():
+    """Scan list ek saath save, aur Undo. items: [{inventory_item_ids: [...], delta}]"""
+    b = request.get_json(force=True)
+    loc = b.get("location_id") or cfg()["location_id"]
+    items = b.get("items") or []
+    changes = []
+    for it in items:
+        d = _int(it.get("delta"))
+        for i in it.get("inventory_item_ids") or []:
+            if d and str(i).startswith("gid://shopify/InventoryItem/"):
+                changes.append({"inventory_item_id": i, "delta": d})
+    if not loc or not changes:
+        return err("Kuch save karne ko nahi")
+    try:
+        _after, errors = shop().adjust_quantities(loc, changes)
+    except ShopifyError as e:
+        return err(e)
+    return jsonify({"ok": True, "updated": 0 if errors else len(items), "errors": errors})
+
+
 # ------------------------------------------------------------------ UI
 with open(os.path.join(BASE, "ui.html"), encoding="utf-8") as _f:
     UI_HTML = _f.read()

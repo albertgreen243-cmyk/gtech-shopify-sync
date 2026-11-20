@@ -50,12 +50,43 @@ class Shopify:
             timeout=30,
         )
         if r.status_code != 200:
-            raise ShopifyError(f"Token nahi mila ({r.status_code}): {r.text[:300]}. "
-                               "Client ID/Secret check karein aur app store par install hai ya nahi.")
+            raise ShopifyError(self._token_error(r))
         j = r.json()
         self._token = j["access_token"]
         self._token_exp = time.time() + int(j.get("expires_in", 86399))
         return self._token
+
+    TOKEN_HINTS = {
+        "invalid_request": "Shopify ko Client ID ya Client secret theek nahi mila. Dev Dashboard → app → Settings se dono "
+                           "dobara copy karein (aage peeche space na ho, ID aur Secret apni apni jagah), Vercel mein update kar ke Redeploy karein.",
+        "invalid_client": "Client ID ya Client secret ghalat hai. Dev Dashboard → app → Settings se dobara copy kar ke Vercel mein "
+                          "update karein aur Redeploy karein.",
+        "application_cannot_be_found": "Is Client ID wali koi app nahi mili. Client ID dobara copy karein. Purani 'Develop apps' wali "
+                                       "app ho to Client ID ki jagah SHOPIFY_ACCESS_TOKEN (shpat_...) use karein.",
+        "app_not_installed": "App is store par install nahi hai. Dev Dashboard → app → Install karein (isi store par).",
+        "shop_not_permitted": "App aur store ek hi Shopify organization mein nahi hain. App usi account se banayein jis mein store hai.",
+    }
+
+    def _token_error(self, r):
+        """Shopify ka token error (JSON ya HTML page) saaf message mein."""
+        import html as _html
+        import re as _re
+        code, desc = "", ""
+        try:
+            j = r.json()
+            code, desc = str(j.get("error") or ""), str(j.get("error_description") or "")
+        except ValueError:
+            t = r.text or ""
+            found = _re.findall(r"Oauth error ([a-z_]+)(?:\s*:\s*([^<\n]+))?", t, _re.I)
+            if found:   # title mein sirf code hota hai, page ke andar wajah bhi: lambi wali lo
+                c, d = max(found, key=lambda x: len(x[1]))
+                code, desc = c.lower(), _html.unescape(d.strip())
+            else:
+                m = _re.search(r"<title>([^<]+)</title>", t, _re.I)
+                desc = _html.unescape(m.group(1).strip()) if m else t[:150]
+        hint = self.TOKEN_HINTS.get(code, "Client ID/Secret check karein aur app store par install hai ya nahi.")
+        why = " · ".join(x for x in (code, desc) if x)
+        return f"Shopify ne token nahi diya ({r.status_code}{': ' + why if why else ''}). {hint} Store: {self.store}"
 
     # ---------- graphql ----------
     def gql(self, query, variables=None, retries=6):
